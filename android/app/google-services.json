@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1025998793107",
+    "project_id": "in-class-activity-14-b01fb",
+    "storage_bucket": "in-class-activity-14-b01fb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1025998793107:android:2fb9632b52e6b53083a066",
+        "android_client_info": {
+          "package_name": "com.oluchi.projectonemad"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9NJDiDjz4Er_JN6kKFS9BNjjUHOc-Tlk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

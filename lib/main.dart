@@ -1,110 +1,260 @@
-// Root app shell & Navigation Bar - Festival Pocket
-// Marquez J (S1) & Oluchi C (S4, S5)
 
 import 'package:flutter/material.dart';
-import 'UI_screens/s1_catalog_dash.dart';
-import 'UI_screens/s4_history_insights.dart';
-import 'UI_screens/s5_settings.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
-void main() {
-  runApp(const FestivalPocketApp());
+import 'firebase_options.dart';
+import 'fcm_service.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  FirebaseMessaging.onBackgroundMessage(
+    firebaseMessagingBackgroundHandler,
+  );
+
+  runApp(const MyApp());
 }
 
-class FestivalPocketApp extends StatelessWidget {
-  const FestivalPocketApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Festival Pocket',
+      title: 'Cloud Courier Mission',
       theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: Colors.white,
-
-        // Standard Flutter colors: orange primary, yellow accent, red error
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.orange,
-          primary: Colors.orange,
-          secondary: Colors.yellow.shade200,
-          error: Colors.redAccent,
-          surface: Colors.white,
+          seedColor: Colors.deepPurple,
         ),
-
-        // Clean white app bar with orange text and icons
-        appBarTheme: AppBarTheme(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.orange.shade800,
-          elevation: 0,
-          scrolledUnderElevation: 1,
-          centerTitle: true,
-          titleTextStyle: TextStyle(
-            color: Colors.orange.shade800,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-
-        // White cards with light orange borders
-        cardTheme: CardThemeData(
-          color: Colors.white,
-          elevation: 2,
-          shadowColor: Colors.orange.withValues(alpha: 0.15),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: Colors.orange.shade100),
-          ),
-        ),
+        useMaterial3: true,
       ),
-      home: const MainNavigationShell(),
+      home: const MissionScreen(),
     );
   }
 }
 
-class MainNavigationShell extends StatefulWidget {
-  const MainNavigationShell({super.key});
+class MissionScreen extends StatefulWidget {
+  const MissionScreen({super.key});
 
   @override
-  State<MainNavigationShell> createState() => _MainNavigationShellState();
+  State<MissionScreen> createState() => _MissionScreenState();
 }
 
-class _MainNavigationShellState extends State<MainNavigationShell> {
-  int _currentIndex = 0;
+class _MissionScreenState extends State<MissionScreen> {
+  final FCMService _fcmService = FCMService();
 
-  // Tabs: S1 (Marquez), S4 & S5 (Oluchi)
-  final List<Widget> _screens = [
-    const S1CatalogDashboardScreen(),
-    const S4HistoryInsightsScreen(),
-    const S5SettingsScreen(),
-  ];
+  String title = 'Welcome, Courier!';
+  String description = 'Waiting for your next mission.';
+  String imageAsset = 'assets/campus.jpg';
+
+  // Activity #14 message tracking
+  int messageCount = 0;
+  String lastHandler = 'None';
+  String lastMessageId = 'None';
+  String diagnostic = 'Waiting for a message...';
+
+  @override
+  void initState() {
+    super.initState();
+    setupMessaging();
+  }
+
+  Future<void> setupMessaging() async {
+    await _fcmService.initialize(
+      onForegroundMessage: (message) {
+        handleMessage(message, 'onMessage');
+      },
+      onNotificationTap: (message) {
+        handleMessage(message, 'onMessageOpenedApp');
+      },
+      onInitialMessage: (message) {
+        handleMessage(message, 'getInitialMessage');
+      },
+    );
+  }
+
+  void handleMessage(RemoteMessage message, String handler) {
+    final newTitle = message.notification?.title;
+    final newDescription = message.notification?.body;
+    final requestedAsset = message.data['asset'];
+
+    String? validAsset;
+
+    // Only allow images that are included in the project.
+    if (requestedAsset == 'campus') {
+      validAsset = 'assets/campus.jpg';
+    } else if (requestedAsset == 'promo') {
+      validAsset = 'assets/promo.jpg';
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      // Update message tracking information.
+      messageCount++;
+      lastHandler = handler;
+      lastMessageId = message.messageId ?? 'Unavailable';
+
+      // Reject invalid or missing asset values safely.
+      if (validAsset == null) {
+        diagnostic = requestedAsset == null
+            ? 'Invalid payload: missing asset'
+            : 'Invalid payload: unsupported asset ($requestedAsset)';
+
+        debugPrint(diagnostic);
+
+        // Keep the previous title, description, and image.
+        return;
+      }
+
+      // Update the mission screen for a valid payload.
+      if (newTitle != null) {
+        title = newTitle;
+      }
+
+      if (newDescription != null) {
+        description = newDescription;
+      }
+
+      imageAsset = validAsset;
+      diagnostic = 'Payload accepted successfully';
+
+      debugPrint('Message received through: $handler');
+      debugPrint('Message ID: $lastMessageId');
+      debugPrint('Asset: $requestedAsset');
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
+      appBar: AppBar(
+        title: const Text('Cloud Courier Mission'),
+        centerTitle: true,
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
-      bottomNavigationBar: NavigationBar(
-        backgroundColor: Colors.white,
-        indicatorColor: Colors.yellow.shade100, // Light yellow active indicator
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (idx) => setState(() => _currentIndex = idx),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.festival_outlined),
-            selectedIcon: Icon(Icons.festival, color: Colors.orange),
-            label: 'Catalog',
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+
+              const SizedBox(height: 16),
+
+              Image.asset(
+                imageAsset,
+                height: 220,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return const Icon(
+                    Icons.image_not_supported,
+                    size: 100,
+                  );
+                },
+              ),
+
+              const SizedBox(height: 16),
+
+              Text(
+                description,
+                style: const TextStyle(fontSize: 17),
+                textAlign: TextAlign.center,
+              ),
+
+              const SizedBox(height: 28),
+
+              const Divider(),
+
+              const SizedBox(height: 12),
+
+              const Text(
+                'Message Information',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Shows which FCM handler processed the message.
+              _buildInfoRow('Last Handler', lastHandler),
+
+              _buildInfoRow(
+                'Messages Received',
+                messageCount.toString(),
+              ),
+
+              _buildInfoRow('Message ID', lastMessageId),
+
+              const SizedBox(height: 16),
+
+              // Shows whether the payload was accepted or rejected.
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: diagnostic.startsWith('Invalid')
+                      ? Colors.red.withValues(alpha: 0.1)
+                      : Colors.green.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'Status: $diagnostic',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: diagnostic.startsWith('Invalid')
+                        ? Colors.red.shade800
+                        : Colors.green.shade800,
+                  ),
+                ),
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.auto_stories_outlined),
-            selectedIcon: Icon(Icons.auto_stories, color: Colors.orange),
-            label: 'History',
+        ),
+      ),
+    );
+  }
+
+  // Reusable display for message information.
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              '$label:',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.tune_outlined),
-            selectedIcon: Icon(Icons.tune, color: Colors.orange),
-            label: 'Settings',
+          Expanded(
+            flex: 3,
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+            ),
           ),
         ],
       ),

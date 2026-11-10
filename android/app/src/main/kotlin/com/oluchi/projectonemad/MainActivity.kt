@@ -1,4 +1,4 @@
-package com.example.festival_pocket
+package com.oluchi.projectonemad
 
 import io.flutter.embedding.android.FlutterActivity
 
